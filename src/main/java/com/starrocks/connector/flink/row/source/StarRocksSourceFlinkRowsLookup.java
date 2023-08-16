@@ -40,9 +40,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class StarRocksSourceFlinkRows implements SourceFlinkRows {
+public class StarRocksSourceFlinkRowsLookup implements SourceFlinkRows {
 
-    private static Logger LOG = LoggerFactory.getLogger(StarRocksSourceFlinkRows.class);
+    private static Logger LOG = LoggerFactory.getLogger(StarRocksSourceFlinkRowsLookup.class);
     private int offsetOfBatchForRead;
     private int rowCountOfBatch;
     private int flinkRowsCount;
@@ -60,7 +60,7 @@ public class StarRocksSourceFlinkRows implements SourceFlinkRows {
         return sourceFlinkRows;
     }
 
-    public StarRocksSourceFlinkRows(TScanBatchResult nextResult,
+    public StarRocksSourceFlinkRowsLookup(TScanBatchResult nextResult,
                                     List<ColumnRichInfo> columnRichInfos,
                                     StarRocksSchema srSchema,
                                     SelectColumn[] selectColumns) {
@@ -74,8 +74,9 @@ public class StarRocksSourceFlinkRows implements SourceFlinkRows {
         this.offsetOfBatchForRead = 0;
     }
 
-    public StarRocksSourceFlinkRows genFlinkRowsFromArrow() throws IOException {
+    public StarRocksSourceFlinkRowsLookup genFlinkRowsFromArrow() throws IOException {
         this.root = arrowStreamReader.getVectorSchemaRoot();
+
         while (arrowStreamReader.loadNextBatch()) {
             fieldVectors = root.getFieldVectors();
             if (fieldVectors.size() == 0 || root.getRowCount() == 0) {
@@ -122,11 +123,11 @@ public class StarRocksSourceFlinkRows implements SourceFlinkRows {
                 rootAllocator.close();
             }
         } catch (IOException e) {
-            LOG.error("Failed to close StarRocksSourceFlinkRows:" + e.getMessage());
-            throw new RuntimeException("Failed to close StarRocksSourceFlinkRows:" + e.getMessage());
+            LOG.error("Failed to close StarRocksSourceFlinkRowsLookup:" + e.getMessage());
+            throw new RuntimeException("Failed to close StarRocksSourceFlinkRowsLookup:" + e.getMessage());
         }
     }
-    
+
     private void setValueToFlinkRows(int rowIndex, int column, Object obj) {
         if (rowIndex > rowCountOfBatch) {
             String errMsg = "Get row offset: " + rowIndex + " larger than row size: " + rowCountOfBatch;
@@ -135,7 +136,7 @@ public class StarRocksSourceFlinkRows implements SourceFlinkRows {
         }
         sourceFlinkRows.get(rowIndex).setField(column, obj);
     }
-    
+
     private void genFlinkRows() {
         for (int i = 0; i < fieldVectors.size(); i++) {
             FieldVector fieldVector = fieldVectors.get(i);

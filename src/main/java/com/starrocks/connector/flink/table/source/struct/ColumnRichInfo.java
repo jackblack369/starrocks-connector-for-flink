@@ -14,10 +14,12 @@
 
 package com.starrocks.connector.flink.table.source.struct;
 
+import lombok.ToString;
 import org.apache.flink.table.types.DataType;
 
 import java.io.Serializable;
 
+@ToString
 public class ColumnRichInfo implements Serializable {
 
     private final String columnName;

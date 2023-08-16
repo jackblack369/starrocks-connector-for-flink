@@ -34,29 +34,29 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class StarRocksDynamicLookupFunction extends TableFunction<RowData> {
-    
+
     private static final Logger LOG = LoggerFactory.getLogger(StarRocksDynamicLookupFunction.class);
-    
+
     private final ColumnRichInfo[] filterRichInfos;
     private final StarRocksSourceOptions sourceOptions;
-    private QueryInfo queryInfo;
     private final SelectColumn[] selectColumns;
     private final List<ColumnRichInfo> columnRichInfos;
-    
     private final long cacheMaxSize;
     private final long cacheExpireMs;
     private final int maxRetryTimes;
+    private final String whereFilter;
 
+    private QueryInfo queryInfo;
     // cache for lookup data
     private Map<Row, List<RowData>> cacheMap;
 
     private transient long nextLoadTime;
 
-    public StarRocksDynamicLookupFunction(StarRocksSourceOptions sourceOptions, 
+    public StarRocksDynamicLookupFunction(StarRocksSourceOptions sourceOptions,
                                           ColumnRichInfo[] filterRichInfos,
                                           List<ColumnRichInfo> columnRichInfos,
                                           SelectColumn[] selectColumns
-                                          ) {
+    ) {
         this.sourceOptions = sourceOptions;
         this.filterRichInfos = filterRichInfos;
         this.columnRichInfos = columnRichInfos;
@@ -65,11 +65,12 @@ public class StarRocksDynamicLookupFunction extends TableFunction<RowData> {
         this.cacheMaxSize = sourceOptions.getLookupCacheMaxRows();
         this.cacheExpireMs = sourceOptions.getLookupCacheTTL();
         this.maxRetryTimes = sourceOptions.getLookupMaxRetries();
-        
+        this.whereFilter = sourceOptions.getLookupWhereFilter();
+
         this.cacheMap = new HashMap<>();
         this.nextLoadTime = -1L;
     }
-    
+
     @Override
     public void open(FunctionContext context) throws Exception {
         super.open(context);
@@ -95,11 +96,23 @@ public class StarRocksDynamicLookupFunction extends TableFunction<RowData> {
             LOG.info("Populating lookup join cache");
         }
         cacheMap.clear();
-        
-        StringBuilder sqlSb = new StringBuilder("select * from ");
-        sqlSb.append("`").append(sourceOptions.getDatabaseName()).append("`");
+
+//        StringBuilder sqlSb = new StringBuilder("select * from ");
+        StringBuilder sqlSb = new StringBuilder("select ");
+
+        for (int i = 0; i < selectColumns.length; i++) {
+            sqlSb.append(selectColumns[i].getColumnName());
+            if (i < selectColumns.length - 1) {
+                sqlSb.append(",");
+            }
+        }
+        sqlSb.append(" from `").append(sourceOptions.getDatabaseName()).append("`");
         sqlSb.append(".");
         sqlSb.append("`" + sourceOptions.getTableName() + "`");
+        if(!this.whereFilter.isEmpty()){
+            sqlSb.append(" where ").append(whereFilter);
+        }
+
         LOG.info("LookUpFunction SQL [{}]", sqlSb.toString());
         this.queryInfo = StarRocksSourceCommonFunc.getQueryInfo(this.sourceOptions, sqlSb.toString());
         List<List<QueryBeXTablets>> lists = StarRocksSourceCommonFunc.splitQueryBeXTablets(1, queryInfo);
@@ -110,7 +123,8 @@ public class StarRocksDynamicLookupFunction extends TableFunction<RowData> {
                     selectColumns,
                     sourceOptions);
             beReader.openScanner(beXTablets.getTabletIds(), queryInfo.getQueryPlan().getOpaqued_query_plan(), sourceOptions);
-            beReader.startToRead();
+//            beReader.startToRead();
+            beReader.startToLookup();
             List<RowData> tmpDataList = new ArrayList<>();
             while (beReader.hasNext()) {
                 RowData row = beReader.getNext();
@@ -118,9 +132,9 @@ public class StarRocksDynamicLookupFunction extends TableFunction<RowData> {
             }
             return tmpDataList.stream();
         }).collect(Collectors.groupingBy(row -> {
-            GenericRowData gRowData = (GenericRowData)row;
+            GenericRowData gRowData = (GenericRowData) row;
             Object[] keyObj = new Object[filterRichInfos.length];
-            for (int i = 0; i < filterRichInfos.length; i ++) {
+            for (int i = 0; i < filterRichInfos.length; i++) {
                 keyObj[i] = gRowData.getField(filterRichInfos[i].getColumnIndexInSchema());
             }
             return Row.of(keyObj);

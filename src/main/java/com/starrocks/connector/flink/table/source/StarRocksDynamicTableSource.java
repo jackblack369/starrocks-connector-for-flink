@@ -30,6 +30,8 @@ import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
 import org.apache.flink.table.expressions.ResolvedExpression;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,7 +41,7 @@ import java.util.Map;
 import java.util.Optional;
 
 public class StarRocksDynamicTableSource implements ScanTableSource, LookupTableSource, SupportsLimitPushDown, SupportsFilterPushDown, SupportsProjectionPushDown {
-
+    private static final Logger LOG = LoggerFactory.getLogger(StarRocksDynamicTableSource.class);
     private final TableSchema flinkSchema;
     private final StarRocksSourceOptions options;
     private final PushDownHolder pushDownHolder;
@@ -83,7 +85,9 @@ public class StarRocksDynamicTableSource implements ScanTableSource, LookupTable
         Map<String, ColumnRichInfo> columnMap = StarRocksSourceCommonFunc.genColumnMap(flinkSchema);
         List<ColumnRichInfo> ColumnRichInfos = StarRocksSourceCommonFunc.genColumnRichInfo(columnMap);
         SelectColumn[] selectColumns = StarRocksSourceCommonFunc.genSelectedColumns(columnMap, this.options, ColumnRichInfos);
-
+        LOG.debug("=== columnMap:[{}]", columnMap);
+        LOG.debug("=== columnRichInfos:[{}]", ColumnRichInfos);
+        LOG.debug("=== selectColumns:[{}]", Arrays.stream(selectColumns).toArray());
         StarRocksDynamicLookupFunction tableFunction = new StarRocksDynamicLookupFunction(this.options, filerRichInfo, ColumnRichInfos, selectColumns);
         return TableFunctionProvider.of(tableFunction);
     }

@@ -14,7 +14,9 @@
 
 package com.starrocks.connector.flink.table.source;
 
+import com.starrocks.connector.flink.row.source.SourceFlinkRows;
 import com.starrocks.connector.flink.row.source.StarRocksSourceFlinkRows;
+import com.starrocks.connector.flink.row.source.StarRocksSourceFlinkRowsLookup;
 import com.starrocks.connector.flink.table.source.struct.ColumnRichInfo;
 import com.starrocks.connector.flink.table.source.struct.Const;
 import com.starrocks.connector.flink.table.source.struct.SelectColumn;
@@ -55,7 +57,8 @@ public class StarRocksSourceBeReader implements StarRocksSourceDataReader, Seria
     private int readerOffset = 0;
     private StarRocksSchema srSchema;
 
-    private StarRocksSourceFlinkRows curFlinkRows;
+//    private StarRocksSourceFlinkRows curFlinkRows;
+    private SourceFlinkRows curFlinkRows;
     private GenericRowData curData;
 
 
@@ -184,6 +187,41 @@ public class StarRocksSourceBeReader implements StarRocksSourceDataReader, Seria
         } catch (IOException e) {
             throw new RuntimeException(e.getMessage());
         } 
+        this.readerOffset = flinkRows.getReadRowCount() + this.readerOffset;
+        this.curFlinkRows = flinkRows;
+        this.curData = flinkRows.next();
+    }
+
+    public void startToLookup() {
+        TScanNextBatchParams params = new TScanNextBatchParams();
+        params.setContext_id(this.contextId);
+        params.setOffset(this.readerOffset);
+        TScanBatchResult result;
+        try {
+            result = client.get_next(params);
+            if (!TStatusCode.OK.equals(result.getStatus().getStatus_code())) {
+                throw new RuntimeException(
+                        "Failed to get next from be -> ip:[" + IP + "] "
+                                + result.getStatus().getStatus_code() + " msg:" + result.getStatus().getError_msgs()
+                );
+            }
+            if (!result.eos) {
+                handleResultLookup(result);
+            }
+        } catch (TException e) {
+            throw new RuntimeException(e.getMessage());
+        }
+    }
+
+    private void handleResultLookup(TScanBatchResult result) {
+        LOG.debug("=== handleResult is :\n columnRichInfos size:[{}] infos :[{}],\n selectColumns size:[{}] info:[{}]",
+                columnRichInfos.size(),columnRichInfos,selectColumns.length,selectColumns);
+        StarRocksSourceFlinkRowsLookup flinkRows = null;
+        try {
+            flinkRows = new StarRocksSourceFlinkRowsLookup(result, columnRichInfos, srSchema, selectColumns).genFlinkRowsFromArrow();
+        } catch (IOException e) {
+            throw new RuntimeException(e.getMessage());
+        }
         this.readerOffset = flinkRows.getReadRowCount() + this.readerOffset;
         this.curFlinkRows = flinkRows;
         this.curData = flinkRows.next();

@@ -102,6 +102,8 @@ public class StarRocksSourceOptions implements Serializable {
     public static final ConfigOption<Integer> LOOKUP_MAX_RETRIES = ConfigOptions.key("lookup.max-retries")
             .intType().defaultValue(1).withDescription("the max retry times if lookup database failed.");
 
+    public static final ConfigOption<String> LOOKUP_WHERE_FILTER = ConfigOptions.key("lookup.filter")
+            .stringType().defaultValue("1 = 1").withDescription("Customize the WHERE filtering condition.");
 
     public static final String SOURCE_PROPERTIES_PREFIX = "scan.params.";
 
@@ -234,6 +236,10 @@ public class StarRocksSourceOptions implements Serializable {
 
     public int getLookupMaxRetries() {
         return tableOptions.get(LOOKUP_MAX_RETRIES).intValue();
+    }
+
+    public String getLookupWhereFilter() {
+        return tableOptions.get(LOOKUP_WHERE_FILTER);
     }
 
     public static Builder builder() {

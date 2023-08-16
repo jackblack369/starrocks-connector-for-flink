@@ -14,8 +14,11 @@
 
 package com.starrocks.connector.flink.table.source.struct;
 
+import lombok.ToString;
+
 import java.io.Serializable;
 
+@ToString
 public class SelectColumn implements Serializable {
     
     private static final long serialVersionUID = 1L;
